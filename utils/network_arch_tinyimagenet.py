@@ -121,7 +121,8 @@ class Discriminator70x70(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self, device='cpu', pretrained=False, patchSize=[64, 64], frameStackNumber=3):
+    # def __init__(self, device='cpu', pretrained=False, patchSize=[64, 64], frameStackNumber=3):
+    def __init__(self, device='cpu', pretrained=False, patchSize=[28, 28], frameStackNumber=1):
         super(Discriminator, self).__init__()
         self.device = device
         self.frameStackNumber = frameStackNumber
@@ -130,7 +131,8 @@ class Discriminator(nn.Module):
 
         self.discriminator = nn.Sequential(
             # 128-->60
-            nn.Conv2d(self.frameStackNumber, 64, kernel_size=9, padding=0, stride=2, bias=False),
+            # nn.Conv2d(self.frameStackNumber, 64, kernel_size=9, padding=0, stride=2, bias=False),
+            nn.Conv2d(self.frameStackNumber, 64, kernel_size=5, padding=2, stride=1, bias=False),
             nn.LeakyReLU(0.2, inplace=True),
 
             # 60-->33
@@ -163,7 +165,7 @@ class GAN_Encoder(nn.Module):
     def __init__(self, embDimension=512):
         super(self.__class__, self).__init__()
     
-        self.conv1 = nn.Conv2d(3,       64,     3, 1, 1, bias=False)
+        self.conv1 = nn.Conv2d(1,       64,     3, 1, 1, bias=False)
         self.conv2 = nn.Conv2d(64,     128,     1, 2, 0, bias=False)
         self.conv3 = nn.Conv2d(128,    128,     3, 1, 1, bias=False)
         self.conv4 = nn.Conv2d(128,    256,     1, 2, 0, bias=False)
@@ -231,7 +233,7 @@ class GAN_Encoder(nn.Module):
     
     
 class GAN_Decoder(nn.Module):
-    def __init__(self, nz=64, ngf=64, nc=3):
+    def __init__(self, nz=64, ngf=64, nc=1):
         super(GAN_Decoder, self).__init__()
        
         # torch.nn.ConvTranspose2d(
@@ -239,31 +241,46 @@ class GAN_Decoder(nn.Module):
         #    stride=1, padding=0, output_padding=0, groups=1, 
         #    bias=True, dilation=1, padding_mode='zeros')
                 
+        # self.main = nn.Sequential(
+        #     # input is Z, going into a convolution
+        #     nn.ConvTranspose2d(nz,     ngf*4,   4,  2,  1,  bias=False),
+        #     nn.BatchNorm2d(ngf * 4),
+        #     nn.ReLU(True),
+        #     # state size. (ngf*8) x 2 x 2
+        #     nn.ConvTranspose2d(ngf*4,  ngf*4,   4,  2,  1,  bias=False),
+        #     nn.BatchNorm2d(ngf * 4),
+        #     nn.ReLU(True),
+        #     # state size. (ngf*4) x 4 x 4
+        #     nn.ConvTranspose2d(ngf*4,  ngf*2,   4,  2,  1,  bias=False),
+        #     nn.BatchNorm2d(ngf * 2),
+        #     nn.ReLU(True),
+        #     # state size. (ngf*2) x 8 x 8
+        #     nn.ConvTranspose2d(ngf*2,  ngf,     4,  2,  1,  bias=False),
+        #     nn.BatchNorm2d(ngf),
+        #     nn.ReLU(True),
+        #     # state size. (ngf) x 16 x 16
+        #     nn.ConvTranspose2d(ngf,    nc,      4,  2,  1,  bias=True)
+        #     #nn.Tanh()
+        #     # state size. (nc) x 32 x 32
+        # )            
         self.main = nn.Sequential(
-            # input is Z, going into a convolution
-            nn.ConvTranspose2d(nz,     ngf*4,   4,  2,  1,  bias=False),
+            nn.ConvTranspose2d(nz, ngf*8, 4, 1, 0, bias=False),
+            nn.BatchNorm2d(ngf * 8),
+            nn.ReLU(True),
+            # Upsampling to 7x7
+            nn.ConvTranspose2d(ngf*8, ngf*4, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf * 4),
             nn.ReLU(True),
-            # state size. (ngf*8) x 2 x 2
-            nn.ConvTranspose2d(ngf*4,  ngf*4,   4,  2,  1,  bias=False),
-            nn.BatchNorm2d(ngf * 4),
-            nn.ReLU(True),
-            # state size. (ngf*4) x 4 x 4
-            nn.ConvTranspose2d(ngf*4,  ngf*2,   4,  2,  1,  bias=False),
+            # Upsampling to 14x14
+            nn.ConvTranspose2d(ngf*4, ngf*2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf * 2),
             nn.ReLU(True),
-            # state size. (ngf*2) x 8 x 8
-            nn.ConvTranspose2d(ngf*2,  ngf,     4,  2,  1,  bias=False),
-            nn.BatchNorm2d(ngf),
-            nn.ReLU(True),
-            # state size. (ngf) x 16 x 16
-            nn.ConvTranspose2d(ngf,    nc,      4,  2,  1,  bias=True)
-            #nn.Tanh()
-            # state size. (nc) x 32 x 32
-        )            
+            # Upsampling to 28x28
+            nn.ConvTranspose2d(ngf*2, nc, 4, 2, 1, bias=True),
+        )
 
     def forward(self, x):
-        return self.main(x)    
+        return self.main(x)
 
 
 
@@ -696,7 +713,7 @@ class classifier32(nn.Module):
 class ResnetEncoder(nn.Module):
     """Pytorch module for a resnet encoder
     """
-    def __init__(self, num_layers=18, isPretrained=False, isGrayscale=False, embDimension=128, poolSize=4):
+    def __init__(self, num_layers=18, isPretrained=False, isGrayscale=True, embDimension=128, poolSize=4):
         super(ResnetEncoder, self).__init__()
         self.path_to_model = '../models'
         self.num_ch_enc = np.array([64, 64, 128, 256, 512])
@@ -734,11 +751,11 @@ class ResnetEncoder(nn.Module):
             self.encoder.load_state_dict(
                 torch.load(os.path.join(self.path_to_model, resnets_pretrained_path[num_layers])))
         
-        #if self.isGrayscale:
-        #    self.encoder.conv1 = nn.Conv2d(
-        #        1, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        #else:
-        #    self.encoder.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        if self.isGrayscale:
+           self.encoder.conv1 = nn.Conv2d(
+               1, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        else:
+           self.encoder.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
         
         if num_layers > 34:
             self.num_ch_enc[1:] *= 4
@@ -847,7 +864,7 @@ class TinyImageNet_Decoder(nn.Module):
     
     
 class CondEncoder(nn.Module):
-    def __init__(self, num_classes=200, dimension=128, device='cpu'):
+    def __init__(self, num_classes=10, dimension=128, device='cpu'):
         super(self.__class__, self).__init__()
         self.num_classes = num_classes               
         self.dimension = dimension
